@@ -24,5 +24,11 @@ def test_engine_runs_and_outputs_equity_curve():
 
     result = engine.run(df, strat)
 
+    # 對齊 index，且長度相同
     assert result.equity_curve.index.equals(df.index)
     assert len(result.equity_curve) == len(df)
+
+    # 最終 equity 有變化（代表有交易）
+    assert result.equity_curve.nunique() > 1
+    assert result.trades is not None
+    assert len(result.trades) > 0

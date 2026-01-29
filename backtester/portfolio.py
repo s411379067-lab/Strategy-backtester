@@ -36,7 +36,7 @@ class Portfolio:
         self.position.qty = fill.qty
         self.position.avg_price = fill.price
         self.position.entry_time = fill.time
-        self.cash -= fill.fee  # 扣手續費（不做保證金計算）
+        self.cash -= fill.fee  # 扣單次手續費（不做保證金計算）
 
     def apply_exit_fill(self, fill: Fill, bars_held: int) -> None:
         assert fill.action.value == "exit"

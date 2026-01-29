@@ -52,7 +52,7 @@ class BacktestEngine:
                     be=portfolio.position.be_price,
                     time_exit=False,
                 )
-
+                # 如果有觸發出場
                 if exit_type is not None and exit_price is not None:
                     fill = exec_model.fill_exit(
                         time=t,
@@ -133,14 +133,15 @@ class BacktestEngine:
     def _compute_indicators(df: pd.DataFrame, strategy: Strategy, reg: IndicatorRegistry) -> Dict[str, Any]:
         req = strategy.required_indicators()
         indicators: Dict[str, Any] = {}
+
         for name, spec in req.items():
-            # MVP: spec 用 tuple 表示 (fn, params...)
-            fn = spec[0]
+            fn_name = spec[0]
             params = spec[1:]
-            if fn == "rolling_high":
-                indicators[name] = reg.rolling_high(df, *params)
-            elif fn == "rolling_low":
-                indicators[name] = reg.rolling_low(df, *params)
-            else:
-                raise ValueError(f"Unknown indicator fn: {fn}")
+
+            fn = getattr(reg, fn_name, None)
+            if fn is None or not callable(fn):
+                raise ValueError(f"Unknown indicator function: {fn_name}")
+
+            indicators[name] = fn(df, *params)
+
         return indicators
