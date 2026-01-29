@@ -1,12 +1,13 @@
 import pandas as pd
+from pytest import approx
 
 from backtester.models import BacktestConfig, Side
 from backtester.execution import ExecutionModel
 
 
 def test_conservative_intrabar_long_sl_first():
-    cfg = BacktestConfig(conservative_intrabar=True)
-    ex = ExecutionModel(cfg)
+    cfg = BacktestConfig(conservative_intrabar=True) # 初始倉位、滑價、fee
+    ex = ExecutionModel(cfg) #
 
     # LONG：同一根同時觸發 TP/SL -> 保守先 SL
     exit_type, exit_price = ex.conservative_exit_price(
@@ -30,6 +31,6 @@ def test_fee_and_slippage_applied_on_entry_long():
 
     fill = ex.fill_entry(time=pd.Timestamp("2026-01-01"), side=Side.LONG, qty=2, price=100)
     # buy with +10bps => 100.1
-    assert abs(fill.price - 100.1) < 1e-9
+    assert fill.price == approx(100.1)
     # fee = notional * 0.001 = 100.1*2*0.001 = 0.2002
-    assert abs(fill.fee - 0.2002) < 1e-9
+    assert fill.fee == approx(0.2002)
