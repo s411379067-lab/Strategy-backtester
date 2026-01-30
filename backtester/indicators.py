@@ -65,3 +65,23 @@ class IndicatorRegistry:
 
     def atr(self, df: pd.DataFrame, length: int) -> pd.Series:
         return atr(df, length)
+    def bar_side(self, df: pd.DataFrame) -> pd.Series:
+        return bar_side(df)
+    def rocp(self, df: pd.DataFrame, length: int, column: str = "close") -> pd.Series:
+        return rocp(df, length, column)
+    def bar_range(self, df: pd.DataFrame) -> pd.Series:
+        return bar_range(df)
+    def bar_range_pct(self, df: pd.DataFrame) -> pd.Series:
+        return bar_range_pct(df)
+    def bar_body_range(self, df: pd.DataFrame) -> pd.Series:
+        return bar_body_range(df)
+    def bar_body_range_pct(self, df: pd.DataFrame) -> pd.Series:
+        return bar_body_range_pct(df)
+    def ma(self, df: pd.DataFrame, length: int, column: str = "close", ma_type: str = "SMA") -> pd.Series:
+        return ma(df, length, column, ma_type)
+    def bar_side_sum(self, df: pd.DataFrame, length: int) -> pd.Series:
+        return bar_side_sum(df, length)
+    def body_strictly_increasing(self, df: pd.DataFrame, n: int) -> pd.Series:
+        return body_strictly_increasing(df, n)
+# 你可以在這裡繼續添加其他指標函數
+
