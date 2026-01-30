@@ -30,6 +30,8 @@ def basic_metrics(result: BacktestResult) -> Dict[str, float]:
     wins = pnls[pnls > 0].sum()
     losses = -pnls[pnls < 0].sum()
     pf = float(wins / losses) if losses > 0 else float("inf")
+    std = pnls.std(ddof=1) if len(pnls) > 1 else 0.0
+    sharpe_ratio = float(pnls.mean() / std * np.sqrt(252)) if std > 0 else 0.0
 
     return {
         "trades": float(len(trades)),
@@ -37,4 +39,5 @@ def basic_metrics(result: BacktestResult) -> Dict[str, float]:
         "avg_pnl": float(pnls.mean()),
         "profit_factor": pf,
         "max_drawdown": max_drawdown(result.equity_curve),
+        "sharpe_ratio": sharpe_ratio,
     }
