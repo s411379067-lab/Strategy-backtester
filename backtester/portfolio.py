@@ -56,6 +56,8 @@ class Portfolio:
                 qty=qty,
                 entry_time=self.position.entry_time or fill.time,
                 entry_price=entry_price,
+                sl_price=self.position.sl_price,
+                tp_price=self.position.tp_price,
                 exit_time=fill.time,
                 exit_price=fill.price,
                 exit_type=fill.exit_type or ExitType.MANUAL,

@@ -11,6 +11,7 @@ import pandas as pd
 class ALBOParams:
     break_out_series_n: int = 3
     break_out_n_bars: int = 10
+    BO_n_times_atr: float = 1.0
     max_notional_pct: float = 1.0
     min_qty: float = 0.001
     sl_atr_like: float = 0.0  # MVP不做ATR，示範保留欄位
@@ -32,6 +33,7 @@ class ALBOStrategy(Strategy):
             f"rocp_{n}": ("rocp", n),
             "hh": ("rolling_high", self.p.break_out_n_bars, "high"),
             "atr": ("atr", 14),
+            "ma": ("ma", 20, "close", "EMA"),
 
         }
 
@@ -71,22 +73,22 @@ class ALBOStrategy(Strategy):
         # 最近 N 根都是 bull bar
         cond2 = bull_bar_series.iat[i] == self.p.break_out_series_n
         # 最後一根漲幅>1倍 atr
-        cond3 = rocp_1.iat[i] > float(ctx.indicators["atr"].iat[i]) / close_p
+        cond3 = rocp_1.iat[i] > float(ctx.indicators["atr"].iat[i])*self.p.BO_n_times_atr/ close_p
         # 突破前n根最高價
         cond4 = close_p > hh_prev
-        
-        
-        
+        ma = ctx.indicators["ma"].iat[i]
+        # 收盤價高於均線
+        cond5 = close_p > ma
 
         # 突破：close > 前一根 rolling high
-        if cond1 and cond2 and cond3 and cond4:
+        if cond1 and cond2 and cond3 and cond4 and cond5:
             # 停損第一根K線開盤
             sl_price = open_series.iat[i - self.p.break_out_series_n + 1]
             # TP = SL距離 * rr
             tp_price = close_p + (close_p - sl_price) * self.p.rr
             entry_price = close_p
-            max_notional = init_equity * self.p.max_notional_pct
-            qty = max_notional / entry_price
+            max_notional_lose = init_equity * self.p.max_notional_pct / 100
+            qty = max_notional_lose / (abs(entry_price - sl_price)) if abs(entry_price - sl_price) > 0 else 0.0
 
             intents.append(
                 OrderIntent(

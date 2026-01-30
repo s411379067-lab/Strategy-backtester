@@ -15,6 +15,7 @@ class StrategyContext:
     i: int
     time: pd.Timestamp
     position: Position
+    init_equity: float
     indicators: Dict[str, Any]  # 已算好的指標/特徵（Series可用 .iat[i] 取值）
 
 

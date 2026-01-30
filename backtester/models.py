@@ -82,6 +82,8 @@ class Trade:
     qty: float
     entry_time: pd.Timestamp
     entry_price: float
+    sl_price: Optional[float]
+    tp_price: Optional[float]
     exit_time: pd.Timestamp
     exit_price: float
     exit_type: ExitType
