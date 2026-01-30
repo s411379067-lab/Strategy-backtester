@@ -77,6 +77,8 @@ class BacktestEngine:
                 time=t,
                 position=portfolio.position,
                 indicators=indicators,
+                # 只使用 initial_cash來計算 單筆最大倉位
+                init_equity= self.config.initial_cash,
             )
             intents = strategy.generate_intents(ctx)
 
@@ -84,7 +86,7 @@ class BacktestEngine:
             #    - 若無倉：允許 entry
             #    - 若有倉：允許更新 tp/sl/be、或 time-exit（close 出）
             intents_sorted = sorted(intents, key=lambda x: x.priority)
-
+            # 
             for it in intents_sorted:
                 if it.action == ActionType.ENTRY:
                     if portfolio.position.side is None or portfolio.position.qty == 0:
