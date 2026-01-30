@@ -58,6 +58,7 @@ class Position:
     qty: float = 0.0
     avg_price: float = 0.0
     entry_time: Optional[pd.Timestamp] = None
+    entry_bar_i: Optional[int] = None  # engine 可記錄此欄位
     # 策略常用的動態出場線（可被 strategy 更新）
     tp_price: Optional[float] = None
     sl_price: Optional[float] = None
@@ -73,6 +74,7 @@ class Fill:
     price: float
     fee: float
     # 若為 exit，標記原因
+    entry_bar_i: Optional[int] = None
     exit_type: Optional[ExitType] = None
 
 

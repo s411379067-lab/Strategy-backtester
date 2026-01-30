@@ -51,7 +51,8 @@ class ALBOStrategy(Strategy):
         if pos.side is not None and pos.qty > 0:
             return intents
 
-        # 無倉：做突破進場（LONG）
+        # 無倉：
+        # 做突破進場（LONG）
         strong_bull_bar_series = ctx.indicators["strong_bull_bar_series"]
         bull_bar_series = ctx.indicators["bull_bar_series"]
         rocp_1 = ctx.indicators["rocp_1"]
@@ -61,6 +62,8 @@ class ALBOStrategy(Strategy):
 
 
         if i < self.p.break_out_series_n - 1:
+            # 檢查time_exit條件
+
             return intents
         atr_i = float(ctx.indicators["atr"].iat[i])
         rocp1_i = float(rocp_1.iat[i])
@@ -101,5 +104,8 @@ class ALBOStrategy(Strategy):
                     priority=10,
                 )
             )
+        # 做突破進場（SHORT）
+        
+
 
         return intents

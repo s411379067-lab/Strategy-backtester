@@ -37,12 +37,12 @@ def _fee(notional: float, fee_rate: float) -> float:
 class ExecutionModel:
     config: BacktestConfig
 
-    def fill_entry(self, time: pd.Timestamp, side: Side, qty: float, price: float) -> Fill:
+    def fill_entry(self, time: pd.Timestamp, side: Side, qty: float, price: float, entry_bar_i: int) -> Fill:
         # entry long=buy, entry short=sell
         is_buy = (side == Side.LONG)
         fill_price = _apply_slippage(price, side, self.config.slippage_bps, is_entry_or_buy=is_buy)
         fee = _fee(notional=fill_price * qty, fee_rate=self.config.fee_rate)
-        return Fill(time=time, action=ActionType.ENTRY, side=side, qty=qty, price=fill_price, fee=fee)
+        return Fill(time=time, action=ActionType.ENTRY, side=side, qty=qty, price=fill_price, fee=fee, entry_bar_i=entry_bar_i)
 
     def fill_exit(self, time: pd.Timestamp, side: Side, qty: float, price: float, exit_type: ExitType) -> Fill:
         # exit long=sell, exit short=buy

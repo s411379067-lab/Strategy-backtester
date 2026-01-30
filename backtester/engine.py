@@ -61,14 +61,24 @@ class BacktestEngine:
                         price=exit_price,
                         exit_type=exit_type,
                     )
-                    bars_held = (i - entry_bar_i) if entry_bar_i is not None else 0
+                    bars_held = (i - portfolio.position.entry_bar_i) if portfolio.position.entry_bar_i is not None else 0
                     portfolio.apply_exit_fill(fill, bars_held=bars_held)
-                    entry_bar_i = None
 
             # 2) time-exit（用 close 出場）
             if portfolio.position.side is not None and portfolio.position.qty > 0:
                 # 這裡示範：策略若要 time-exit，透過 intent 來觸發
-                pass
+                time_exit_bars = getattr(strategy.p, "time_exit_bars", None)
+                if time_exit_bars is not None and (isinstance(time_exit_bars, int)):
+                    bars_held = (i - portfolio.position.entry_bar_i) if portfolio.position.entry_bar_i is not None else 0
+                    if bars_held >= time_exit_bars:
+                        fill = exec_model.fill_exit(
+                            time=t,
+                            side=portfolio.position.side,
+                            qty=portfolio.position.qty,
+                            price=c,
+                            exit_type=ExitType.TIME,
+                        )
+                        portfolio.apply_exit_fill(fill, bars_held=bars_held)
 
             # 3) 收盤產生 intents（entry / exit / 更新出場線）
             ctx = StrategyContext(
@@ -90,9 +100,8 @@ class BacktestEngine:
             for it in intents_sorted:
                 if it.action == ActionType.ENTRY:
                     if portfolio.position.side is None or portfolio.position.qty == 0:
-                        fill = exec_model.fill_entry(time=t, side=it.side, qty=it.qty, price=c)
+                        fill = exec_model.fill_entry(time=t, side=it.side, qty=it.qty, price=c, entry_bar_i=i)
                         portfolio.apply_entry_fill(fill)
-                        entry_bar_i = i
                         # 若 intent 有帶 tp/sl/be，直接寫入 position
                         portfolio.position.tp_price = it.tp_price
                         portfolio.position.sl_price = it.sl_price
@@ -109,9 +118,8 @@ class BacktestEngine:
                                 price=c,
                                 exit_type=ExitType.TIME,
                             )
-                            bars_held = (i - entry_bar_i) if entry_bar_i is not None else 0
+                            bars_held = (i - portfolio.position.entry_bar_i) if portfolio.position.entry_bar_i is not None else 0
                             portfolio.apply_exit_fill(fill, bars_held=bars_held)
-                            entry_bar_i = None
 
                 # ADD 暫不實作（你後續要加倉時再擴充）
 
