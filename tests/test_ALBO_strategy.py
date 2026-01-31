@@ -134,6 +134,7 @@ def test_albo_generate_intents_entry_when_SHORT_conditions_met():
         break_out_series_n=n,
         break_out_n_bars=10,  # 這個單元測試不依賴 rolling_high 真實計算，直接餵 hh
         rr=2.0,
+        allow_side=Side.SHORT,
     )
     strat = ALBOStrategy(p)
 

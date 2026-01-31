@@ -18,6 +18,7 @@ class ALBOParams:
     fixed_sl_pct: float = 0.01
     rr: float = 2.0           # TP = SL距離 * rr
     time_exit_bars: int = 50
+    allow_side: Optional[Side] = None  # None表示雙向進出場，Side.LONG表示只做多，Side.SHORT表示只做空
 
 
 class ALBOStrategy(Strategy):
@@ -83,9 +84,12 @@ class ALBOStrategy(Strategy):
         ma = ctx.indicators["ma"].iat[i]
         # 收盤價高於均線
         cond5 = close_p > ma
+        # 策略條件做多或雙向
+        cond6 = (self.p.allow_side is None) or (self.p.allow_side == Side.LONG)
+
 
         # 突破：close > 前一根 rolling high
-        if cond1 and cond2 and cond3 and cond4 and cond5:
+        if cond1 and cond2 and cond3 and cond4 and cond5 and cond6:
             # 停損第一根K線開盤
             sl_price = open_series.iat[i - self.p.break_out_series_n + 1]
             # TP = SL距離 * rr
@@ -119,8 +123,10 @@ class ALBOStrategy(Strategy):
         cond4_short = close_p < ll_prev
         # 收盤價低於均線
         cond5_short = close_p < ma
+        # 策略條件做空或雙向
+        cond6_short = (self.p.allow_side is None) or (self.p.allow_side == Side.SHORT)
 
-        if cond1_short and cond2_short and cond3_short and cond4_short and cond5_short:
+        if cond1_short and cond2_short and cond3_short and cond4_short and cond5_short and cond6_short:
             # 停損第一根K線開盤
             sl_price = open_series.iat[i - self.p.break_out_series_n + 1]
             # TP = SL距離 * rr
