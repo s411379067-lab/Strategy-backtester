@@ -27,11 +27,12 @@ class ALBOStrategy(Strategy):
     def required_indicators(self) -> Dict[str, Any]:
         n = self.p.break_out_series_n
         return {
-            "strong_bull_bar_series": ("body_strictly_increasing", n),
-            "bull_bar_series": ("bar_side_sum", n),
+            "strong_bar_series": ("body_strictly_increasing", n),
+            "bar_series": ("bar_side_sum", n),
             "rocp_1": ("rocp", 1),
             f"rocp_{n}": ("rocp", n),
             "hh": ("rolling_high", self.p.break_out_n_bars, "high"),
+            "ll": ("rolling_low", self.p.break_out_n_bars, "low"),
             "atr": ("atr", 14),
             "ma": ("ma", 20, "close", "EMA"),
 
@@ -53,8 +54,8 @@ class ALBOStrategy(Strategy):
 
         # 無倉：
         # 做突破進場（LONG）
-        strong_bull_bar_series = ctx.indicators["strong_bull_bar_series"]
-        bull_bar_series = ctx.indicators["bull_bar_series"]
+        strong_bar_series = ctx.indicators["strong_bar_series"]
+        bar_series = ctx.indicators["bar_series"]
         rocp_1 = ctx.indicators["rocp_1"]
         rocp_n = ctx.indicators[f"rocp_{self.p.break_out_series_n}"]
         hh = ctx.indicators["hh"]
@@ -72,9 +73,9 @@ class ALBOStrategy(Strategy):
         if pd.isna(atr_i) or pd.isna(rocp1_i) or pd.isna(hh_prev):
             return intents
         # 最近 N 根body越來越強
-        cond1 = strong_bull_bar_series.iat[i]
+        cond1 = strong_bar_series.iat[i]
         # 最近 N 根都是 bull bar
-        cond2 = bull_bar_series.iat[i] == self.p.break_out_series_n
+        cond2 = bar_series.iat[i] == self.p.break_out_series_n
         # 最後一根漲幅>1倍 atr
         cond3 = rocp_1.iat[i] > float(ctx.indicators["atr"].iat[i])*self.p.BO_n_times_atr/ close_p
         # 突破前n根最高價
@@ -104,8 +105,41 @@ class ALBOStrategy(Strategy):
                     priority=10,
                 )
             )
+            
         # 做突破進場（SHORT）
-        
+        ll = ctx.indicators["ll"]
+        ll_prev = float(ll.iat[i - 1]) if i - 1 >= 0 else float("nan")
+        # 最近 N 根body越來越大
+        cond1_short = strong_bar_series.iat[i]
+        # 最近 N 根都是 bear bar
+        cond2_short = bar_series.iat[i] == -self.p.break_out_series_n
+        # 最後一根跌幅>1倍 atr
+        cond3_short = rocp_1.iat[i] < -float(ctx.indicators["atr"].iat[i])*self.p.BO_n_times_atr/ close_p
+        # 最後一根收盤突破前n根最低價
+        cond4_short = close_p < ll_prev
+        # 收盤價低於均線
+        cond5_short = close_p < ma
+
+        if cond1_short and cond2_short and cond3_short and cond4_short and cond5_short:
+            # 停損第一根K線開盤
+            sl_price = open_series.iat[i - self.p.break_out_series_n + 1]
+            # TP = SL距離 * rr
+            tp_price = close_p - (sl_price - close_p) * self.p.rr
+            entry_price = close_p
+            max_notional_lose = init_equity * self.p.max_notional_pct / 100
+            qty = max_notional_lose / (abs(entry_price - sl_price)) if abs(entry_price - sl_price) > 0 else 0.0
+
+            intents.append(
+                OrderIntent(
+                    action=ActionType.ENTRY,
+                    side=Side.SHORT,
+                    qty=max(self.p.min_qty, float(qty)),
+                    tp_price=tp_price,
+                    sl_price=sl_price,
+                    be_price=None,
+                    priority=10,
+                )
+            )
 
 
         return intents
