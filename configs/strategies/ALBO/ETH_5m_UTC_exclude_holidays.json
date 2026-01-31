@@ -1,12 +1,21 @@
 {
-    "LONG OK":{
+    "LONG_compound_interest":{
         "break_out_series_n": 3,
         "break_out_n_bars": 20,
         "BO_n_times_atr": 2,
-        "max_notional_pct": 2.0,
+        "max_notional_pct": 1.5,
         "min_qty": 0.0001,
         "rr": 1.5,
-        "time_exit_bars": 50
+        "time_exit_bars": 100
+    },
+    "LONG_simple_interest":{
+        "break_out_series_n": 3,
+        "break_out_n_bars": 20,
+        "BO_n_times_atr": 2,
+        "max_notional_pct": 2,
+        "min_qty": 0.0001,
+        "rr": 1.5,
+        "time_exit_bars": 100
     }
 
 

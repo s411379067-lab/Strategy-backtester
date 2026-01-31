@@ -108,7 +108,7 @@ def test_albo_generate_intents_entry_when_LONG_conditions_met():
     }
 
     pos = Position(side=None, qty=0.0)
-    ctx = StrategyContext(df=df, i=i, time=t, position=pos, indicators=indicators, init_equity=10000.0)
+    ctx = StrategyContext(df=df, i=i, time=t, position=pos, indicators=indicators, init_equity=10000.0, now_equity=10000.0)
 
     intents = strat.generate_intents(ctx)
 
@@ -181,7 +181,7 @@ def test_albo_generate_intents_entry_when_SHORT_conditions_met():
     }
 
     pos = Position(side=None, qty=0.0)
-    ctx = StrategyContext(df=df, i=i, time=t, position=pos, indicators=indicators, init_equity=10000.0)
+    ctx = StrategyContext(df=df, i=i, time=t, position=pos, indicators=indicators, init_equity=10000.0, now_equity=10000.0)
 
     intents = strat.generate_intents(ctx)
 
@@ -225,7 +225,7 @@ def test_albo_generate_intents_no_entry_when_in_position():
     indicators = {}
 
     pos = Position(side=Side.LONG, qty=1.0, avg_price=100.0, entry_time=df.index[0])
-    ctx = StrategyContext(df=df, i=i, time=t, position=pos, indicators=indicators)
+    ctx = StrategyContext(df=df, i=i, time=t, position=pos, indicators=indicators, init_equity=10000.0, now_equity=10000.0)
 
     intents = strat.generate_intents(ctx)
     assert intents == []
