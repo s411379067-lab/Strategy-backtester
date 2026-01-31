@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Dict, Any, List, Optional
 
-from ..models import OrderIntent, ActionType, Side, ExitType, Position
+from ..models import OrderIntent, ActionType, Side, ExitType, Position, SizingEquityBase
 from ..strategy_base import Strategy, StrategyContext
 import pandas as pd
 
@@ -19,6 +19,8 @@ class ALBOParams:
     rr: float = 2.0           # TP = SL距離 * rr
     time_exit_bars: int = 50
     allow_side: Optional[Side] = None  # None表示雙向進出場，Side.LONG表示只做多，Side.SHORT表示只做空
+    sizing_equity_base: SizingEquityBase = SizingEquityBase.INITIAL
+
 
 
 class ALBOStrategy(Strategy):
@@ -44,6 +46,11 @@ class ALBOStrategy(Strategy):
         df = ctx.df
         pos = ctx.position
         init_equity = ctx.init_equity
+        now_equity = ctx.now_equity
+        if self.p.sizing_equity_base == SizingEquityBase.INITIAL:
+            base_equity = init_equity
+        elif self.p.sizing_equity_base == SizingEquityBase.CURRENT:
+            base_equity = now_equity
         intents: List[OrderIntent] = []
 
         open_series = df["open"]
@@ -95,7 +102,7 @@ class ALBOStrategy(Strategy):
             # TP = SL距離 * rr
             tp_price = close_p + (close_p - sl_price) * self.p.rr
             entry_price = close_p
-            max_notional_lose = init_equity * self.p.max_notional_pct / 100
+            max_notional_lose = base_equity * self.p.max_notional_pct / 100
             qty = max_notional_lose / (abs(entry_price - sl_price)) if abs(entry_price - sl_price) > 0 else 0.0
 
             intents.append(
@@ -132,7 +139,7 @@ class ALBOStrategy(Strategy):
             # TP = SL距離 * rr
             tp_price = close_p - (sl_price - close_p) * self.p.rr
             entry_price = close_p
-            max_notional_lose = init_equity * self.p.max_notional_pct / 100
+            max_notional_lose = base_equity * self.p.max_notional_pct / 100
             qty = max_notional_lose / (abs(entry_price - sl_price)) if abs(entry_price - sl_price) > 0 else 0.0
 
             intents.append(

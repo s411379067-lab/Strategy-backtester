@@ -24,7 +24,11 @@ class ExitType(str, Enum):
     BE = "be"
     TIME = "time"
     MANUAL = "manual"
-
+    
+class SizingEquityBase(str, Enum):
+    INITIAL = "initial"   # 用 initial equity/cash
+    CURRENT = "current"   # 用當下 equity
+    PEAK = "peak"         # 用歷史最高 equity（常用來做保守 sizing）
 
 @dataclass(frozen=True)
 class BacktestConfig:

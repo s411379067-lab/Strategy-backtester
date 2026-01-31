@@ -89,6 +89,7 @@ class BacktestEngine:
                 indicators=indicators,
                 # 只使用 initial_cash來計算 單筆最大倉位
                 init_equity= self.config.initial_cash,
+                now_equity= portfolio.equity(mark_price=c),
             )
             intents = strategy.generate_intents(ctx)
 
