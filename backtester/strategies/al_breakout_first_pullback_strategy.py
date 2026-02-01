@@ -76,6 +76,8 @@ class ALBreakoutFirstPullbackStrategy(Strategy):
         # 如果還沒出現第一根反向K線，直接返回
         if (np.sign(streak_prev2) == np.sign(streak_prev)):
             return intents
+        if i < 2:
+            return intents
         # i為進場K線，i-1為反向K線R1，i-2為突破的最後一根K線
 
 
@@ -88,7 +90,7 @@ class ALBreakoutFirstPullbackStrategy(Strategy):
 
             
             hh = ctx.indicators["hh"]
-            hh_prev2 = float(hh.iat[i - 2]) if i - 2 >= 0 else float("nan")
+            hh_prev3 = float(hh.iat[i - 3]) if i - 3 >= 0 else float("nan")
             # 前streak_prev根開盤到收盤的幅度(BO range)
             bo_open_p = float(open_series.iat[i - 1 - streak_prev2]) if streak_prev2 > 0 else 0.0
             bo_range = abs(close_series.iat[i - 2] - bo_open_p) if streak_prev2 > 0 else 0.0
@@ -99,7 +101,7 @@ class ALBreakoutFirstPullbackStrategy(Strategy):
             ## 連續n根同向K線以上
             cond1 = streak_prev2 >= self.p.break_out_series_n
             ## 突破前高
-            cond2 = close_series.iat[i - 2] > hh_prev2
+            cond2 = close_series.iat[i - 2] > hh_prev3
             ## 突破幅度>=atr最小幅度
             cond3 = bo_range >= self.p.BO_n_times_atr * float(ctx.indicators["atr"].iat[i - 2])
             ## 這根K線觸及R1低點
@@ -124,11 +126,20 @@ class ALBreakoutFirstPullbackStrategy(Strategy):
                         action=ActionType.ENTRY,
                         side=Side.LONG,
                         qty=max(self.p.min_qty, float(qty)),
-                        entry_price=entry_price,
                         tp_price=tp_price,
                         sl_price=sl_price,
                         be_price=None,
                         priority=10,
                     )
                 )
-
+            debug_info = {
+                "cond1": cond1,
+                "cond2": cond2,
+                "cond3": cond3,
+                "cond4": cond4,
+                "cond5": cond5,
+                "streak_prev2": streak_prev2,
+                "streak_prev": streak_prev,
+                "streak_curr": streak_curr,
+            }
+            return intents
