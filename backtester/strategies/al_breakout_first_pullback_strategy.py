@@ -39,6 +39,7 @@ class ALBreakoutFirstPullbackStrategy(Strategy):
         self.state = None  # 可用來記錄策略狀態
         self.pb_start_i = None  # 紀錄pullback開始的index
         self.pb_bar_define_n = 2  # pullback定義:連續ll K線數
+        self.tp_changed = False  # 是否已經移動過停利
 
     def required_indicators(self) -> Dict[str, Any]:
         n = self.p.break_out_series_n
@@ -107,8 +108,8 @@ class ALBreakoutFirstPullbackStrategy(Strategy):
                         new_sl_price = lastest_pivot_low if lastest_pivot_low > pos.sl_price else pos.sl_price
                         # 更新到leg1.2 MM的rr倍
                         origin_sl_range = pos.avg_price - pos.sl_price if pos.sl_price is not None else 0.0
-                        new_tp_price = pos.tp_price
-                        # new_tp_price = new_sl_price + origin_sl_range * self.p.rr
+                        new_tp_price = pos.tp_price if self.tp_changed else new_sl_price + origin_sl_range * self.p.rr
+                        self.tp_changed = True
                         intents.append(
                             OrderIntent(
                                 action=ActionType.UPDATE,
@@ -124,7 +125,7 @@ class ALBreakoutFirstPullbackStrategy(Strategy):
             debug_info = {
                 "state": self.state,
             }
-            return intents, debug_info
+            return intents
 
         streak = ctx.indicators["streak"]
         streak_prev = int(streak.iat[i - 1]) if i - 1 >= 0 else 0
@@ -208,4 +209,4 @@ class ALBreakoutFirstPullbackStrategy(Strategy):
                 "hh_prev3": hh_prev3,
                 "state": self.state,
             }
-            return intents, debug_info
+            return intents
