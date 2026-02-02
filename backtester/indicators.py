@@ -98,16 +98,37 @@ def bar_streak(df: pd.DataFrame, doji: str = "reset") -> pd.Series:
     streak = streak.ffill().fillna(0).astype("int64")
     return streak
 
+def hh_ll_check(df: pd.DataFrame, side: str = "hh") -> pd.DataFrame:
+    if side == "hh":
+        has_bar_hh = df["high"] > df["high"].shift(1)
+        return has_bar_hh.fillna(False)
+    elif side == "ll":
+        has_bar_ll = df["low"] < df["low"].shift(1)
+        return has_bar_ll.fillna(False)
+    else:
+        raise ValueError("side must be 'hh' or 'll'")
+    
+def hh_ll_streak(df: pd.DataFrame, side: str = "hh") -> pd.Series:
+    has_hh_ll = hh_ll_check(df, side)
+    grp = (has_hh_ll != has_hh_ll.shift()).cumsum()
+    cnt = has_hh_ll.groupby(grp).cumcount() + 1
+    streak = cnt * has_hh_ll.astype("int64")
+    streak = streak.where(has_hh_ll, 0).astype("int64")
+    return streak
 
+def pivot_mask(df: pd.DataFrame, side: str = "low", k: int = 2) -> pd.Series:
+    w = 2 * k + 1
+    m = df[side].rolling(w, center=True).min()
+    mask = df[side] == m
+    pivot_mask_series = mask.fillna(False)
+    return pivot_mask_series
 
 
 class IndicatorRegistry:
     def rolling_high(self, df: pd.DataFrame, length: int, column: str = "high") -> pd.Series:
         return rolling_high(df, length, column)
-
     def rolling_low(self, df: pd.DataFrame, length: int, column: str = "low") -> pd.Series:
         return rolling_low(df, length, column)
-
     def atr(self, df: pd.DataFrame, length: int) -> pd.Series:
         return atr(df, length)
     def bar_side(self, df: pd.DataFrame) -> pd.Series:
@@ -130,5 +151,11 @@ class IndicatorRegistry:
         return body_strictly_increasing(df, n)
     def bar_streak(self, df: pd.DataFrame, doji: str = "reset") -> pd.Series:
         return bar_streak(df, doji)
+    def hh_ll_check(self, df: pd.DataFrame, side: str = "hh") -> pd.DataFrame:
+        return hh_ll_check(df, side)
+    def hh_ll_streak(self, df: pd.DataFrame, side: str = "hh") -> pd.Series:
+        return hh_ll_streak(df, side)
+    def pivot_mask(self, df: pd.DataFrame, side: str = "low", k: int = 2) -> pd.Series:
+        return pivot_mask(df, side, k)
 # 你可以在這裡繼續添加其他指標函數
 
