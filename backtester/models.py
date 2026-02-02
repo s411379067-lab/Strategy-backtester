@@ -16,6 +16,7 @@ class ActionType(str, Enum):
     ENTRY = "entry"
     ADD = "add"
     EXIT = "exit"
+    UPDATE = "update"
 
 
 class ExitType(str, Enum):
