@@ -121,7 +121,15 @@ class BacktestEngine:
                             )
                             bars_held = (i - portfolio.position.entry_bar_i) if portfolio.position.entry_bar_i is not None else 0
                             portfolio.apply_exit_fill(fill, bars_held=bars_held)
-
+                elif it.action == ActionType.UPDATE:
+                    # 更新 tp/sl/be 價位
+                    if portfolio.position.side is not None and portfolio.position.qty > 0:
+                        if it.tp_price is not None:
+                            portfolio.position.tp_price = it.tp_price
+                        if it.sl_price is not None:
+                            portfolio.position.sl_price = it.sl_price
+                        if it.be_price is not None:
+                            portfolio.position.be_price = it.be_price
                 # ADD 暫不實作（你後續要加倉時再擴充）
 
             # 5) 記錄 equity（用 close mark）
