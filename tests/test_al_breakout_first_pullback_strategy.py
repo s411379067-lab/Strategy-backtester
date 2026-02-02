@@ -8,6 +8,7 @@ from backtester.models import BacktestConfig, Position, Side, ActionType
 from backtester.strategy_base import StrategyContext
 
 from backtester.strategies.al_breakout_first_pullback_strategy import ALBreakoutFirstPullbackStrategy, ALBreakoutFirstPullbackParams
+from backtester import indicators as ind
 
 
 import pandas as pd
@@ -165,7 +166,7 @@ def test_al_breakout_first_pullback_generate_intents_entry_when_LONG_conditions_
         indicators={
             "rocp_1": pd.Series([0.0]*len(df)),
             "rocp_3": pd.Series([0.0]*len(df)),
-            "hh": pd.Series([float("nan")]* (i-2) + [101.5] + [float("nan")]*(len(df)-i-1)),
+            "hh": ind.rolling_high(df, length=p.break_out_n_bars, column="high"),
             "ll": pd.Series([float("nan")]*len(df)),
             "atr": pd.Series([1.0]*len(df)),
             "ma": pd.Series([100.0]*len(df)),
@@ -185,6 +186,10 @@ def test_al_breakout_first_pullback_generate_intents_entry_when_LONG_conditions_
     streak_prev2 = debug_info["streak_prev2"]
     streak_prev = debug_info["streak_prev"]
     streak_curr = debug_info["streak_curr"]
+    high_prev2 = debug_info["high_prev2"]
+    hh_prev3 = debug_info["hh_prev3"]
+    assert high_prev2 == 110
+    assert hh_prev3 == 109
     assert streak_prev2 == 10
     assert streak_prev == -1
     assert streak_curr == -2
@@ -265,3 +270,48 @@ def test_max_position_size_limit():
         max_qty = max_notional_lose / sl_range if sl_range > 0 else float('inf')
         assert trade.qty <= max_qty
         # assert -max_notional*1.1 > trade.pnl
+
+def test_al_breakout_first_pullback_strategy_state():
+    p = ALBreakoutFirstPullbackParams(
+        break_out_series_n=3,
+        break_out_n_bars=5,
+        n_bar_pivot=2,
+        rr=2.0,
+    )
+    strat = ALBreakoutFirstPullbackStrategy(p)
+
+    df = _make_df(bo_rows=10, pd_rows=3, second_leg_rows=10, side="long")
+    i = 17  # 確保 i >= 2，且 i-2 不越界
+    t = df.index[i]
+    ctx = StrategyContext(
+        i=i,
+        df=df,
+        indicators={
+            "rocp_1": pd.Series([0.0]*len(df)),
+            "rocp_3": pd.Series([0.0]*len(df)),
+            "hh": ind.rolling_high(df, length=p.break_out_n_bars, column="high"),
+            "ll": pd.Series([float("nan")]*len(df)),
+            "atr": pd.Series([1.0]*len(df)),
+            "ma": pd.Series([100.0]*len(df)),
+            "streak": pd.Series(np.arange(1,11).tolist() + [-1, -2, -3] + np.arange(1,11).tolist()),  # 模擬出現反向K線
+            "ll_streak": ind.hh_ll_streak(df = df, side = "ll"),
+            "hh_streak": ind.hh_ll_streak(df = df, side = "hh"),
+            "pivot_low_mask": ind.pivot_mask(df = df, side = "low", k = 3),
+        },
+        position=Position(side=Side.LONG, qty=1.0),
+        time = t,
+        init_equity=10000.0,
+        now_equity=10000.0,
+    )
+    strat.state = "UPDATE_SL"
+    ctx.position.sl_price = 99  # 模擬已經有倉位和停損價
+    strat.pb_start_i = 12  # 模擬 pullback 開始 index
+    intents, debug_info = strat.generate_intents(ctx)
+    # 模擬進場後，檢查 state 是否更新
+
+    assert len(intents) == 0
+    assert debug_info["state"] == "UPDATE_SL"
+    # assert intents[0].sl_price == 106
+    # assert debug_info["state"] == "PB"
+
+    
