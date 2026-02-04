@@ -182,8 +182,8 @@ class ALBreakoutFirstPullbackStrategy(Strategy):
                 tp_price = entry_price + sl_distance * self.p.rr
 
                 # 計算可用資金與下單數量
-                max_notional = base_equity * self.p.max_notional_pct
-                qty = max_notional / entry_price
+                max_notional_lose = base_equity * (self.p.max_notional_pct / 100)
+                qty = max_notional_lose / (abs(entry_price - sl_price)) if abs(entry_price - sl_price) > 0 else 0.0
                 intents.append(
                     OrderIntent(
                         action=ActionType.ENTRY,
