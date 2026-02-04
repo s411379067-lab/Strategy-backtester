@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Dict, Any, List, Optional
 
 from ..models import OrderIntent, ActionType, Side, ExitType, Position, SizingEquityBase
@@ -10,11 +10,30 @@ import numpy as np
 
 @dataclass(frozen=True)
 class ALBreakoutPullback50pctParams:
+    """
+    Parameters for ALBreakoutPullback50pctStrategy
+    
+    Attributes:
+        break_out_series_n (int): 突破連續K線數
+        break_out_n_bars (int): 突破區間長度（K線數）
+        BO_n_times_atr (float): 突破幅度需大於ATR倍數
+        n_bar_pivot (int): pivot高低點定義K線數
+        pullback_ratio (List[float]): 回調百分比(多空可用不同值)
+        min_sl_range_pct (float): 最小停損距離百分比
+        max_notional_pct (float): 最大虧損佔資金比例%
+        min_qty (float): 最小下單數量
+        sl_atr_like (float): 停損距離ATR倍數(此策略不使用)
+        fixed_sl_pct (float): 固定停損百分比(此策略不使用)
+        rr (float): 風險報酬比
+        time_exit_bars (int): 時間出場K線數
+        allow_side (Optional[Side]): 允許進出場方向
+    """
     break_out_series_n: int = 3
     break_out_n_bars: int = 10
     BO_n_times_atr: float = 1.0
     n_bar_pivot: int = 3  # pivot高低點定義K線數
-    pullback_ratio: float = 0.5  # 回調百分比
+    pullback_ratio: List[float] = field(default_factory=lambda: [0.5])  # 回調百分比
+    min_sl_range_pct: float = 0.3  # 最小停損距離百分比
     max_notional_pct: float = 1.0
     min_qty: float = 0.001
     sl_atr_like: float = 0.0  # MVP不做ATR，示範保留欄位
@@ -56,6 +75,7 @@ class ALBreakoutPullback50pctStrategy(Strategy):
             "ll_streak": ("hh_ll_streak", "ll"),
             "hh_streak": ("hh_ll_streak", "hh"),
             "pivot_low_mask": ("pivot_mask", "low", self.p.n_bar_pivot),
+            "strong_bar_series": ("body_strictly_increasing", n),
         }
 
     def generate_intents(self, ctx: StrategyContext) -> List[OrderIntent]:
@@ -134,6 +154,10 @@ class ALBreakoutPullback50pctStrategy(Strategy):
         streak_prev2 = int(bar_streak.iat[i-2]) if i - 2 >= 0 else 0
         streak_curr = int(bar_streak.iat[i])
 
+        ## 亞、歐、美盤前盤後不做
+        time_hour = df.index[i].hour
+        cond_time_filter = time_hour not in [8,9,13,14,19,20,21,22,23,0,1]
+
         if i < 4:
             return intents
         # i為進場K線，i-1為反向K線R1，i-2為突破的最後一根K線
@@ -148,14 +172,19 @@ class ALBreakoutPullback50pctStrategy(Strategy):
 
 
             
-
+            if len(self.p.pullback_ratio) == 2:
+                long_pullback_ratio = self.p.pullback_ratio[0]
+                short_pullback_ratio = self.p.pullback_ratio[1]
+            else:
+                long_pullback_ratio = self.p.pullback_ratio[0]
+                short_pullback_ratio = self.p.pullback_ratio[0]
             
             hh = ctx.indicators["hh"]
             # 前streak_prev根開盤到收盤的幅度(BO range)
             
 
 
-            # 檢查前兩根是否為多頭突破
+            # 檢查前面是否為多頭突破
 
             ## 連續n根同向K線以上(BO)
             cond1 = streak_curr >= self.p.break_out_series_n
@@ -168,14 +197,36 @@ class ALBreakoutPullback50pctStrategy(Strategy):
             cond5 = sum([ctx.indicators["ll_streak"].iat[j] for j in range(i - 4, i)]) == 0
             ## 策略條件做多或雙向
             cond6 = (self.p.allow_side is None) or (self.p.allow_side == Side.LONG)
+            ## 實體越來越強(BO)
+            cond7 = ctx.indicators["strong_bar_series"].iat[i]
+            
 
-            if (cond1 and cond2 and cond4 and cond6):
+            # 檢查前面是否為空頭突破
+            ll = ctx.indicators["ll"]
+            
+            ## 連續n根同向K線以上(BO)
+            cond1_short = streak_curr <= -self.p.break_out_series_n
+            ## 突破前低(BO、MC)
+            cond2_short = low_series.iat[i] < ll.iat[i - 1]
+            ## 收盤小於MA(BO、MC)
+            cond4_short = close_series.iat[i] < ctx.indicators["ma"].iat[i]
+            ## 連續4根K線沒有PB(MC)
+            cond5_short = sum([ctx.indicators["hh_streak"].iat[j] for j in range(i - 4, i)]) == 0
+            ## 策略條件做空或雙向
+            cond6_short = (self.p.allow_side is None) or (self.p.allow_side == Side.SHORT)
+            ## 實體越來越強(BO)
+            cond7_short = ctx.indicators["strong_bar_series"].iat[i]
+
+            if (cond1 and cond2 and cond4 and cond6 and cond7):
                 # 記錄breakout開始index
                 ## 突破幅度>=atr最小幅度(BO、MC)
                 bo_open_p = float(open_series.iat[i - streak_curr + 1]) if i - streak_curr + 1 >= 0 else 0.0
                 bo_range = abs(close_series.iat[i] - bo_open_p) if streak_curr > 0 else 0.0
                 cond3 = bo_range >= self.p.BO_n_times_atr * float(ctx.indicators["atr"].iat[i])
-                if cond3:
+                ## 突破幅度>=固定最小幅度
+                min_sl_range = close_series.iat[i] * (self.p.min_sl_range_pct / 100)
+                cond8 = bo_range >= min_sl_range
+                if cond3 and cond8:
                     self.state = "BO"
                     self.bo_start_i = i - streak_curr + 1
 
@@ -185,9 +236,37 @@ class ALBreakoutPullback50pctStrategy(Strategy):
                 bo_open_p = float(open_series.iat[i - 3])
                 bo_range = abs(close_series.iat[i] - bo_open_p)
                 cond3 = bo_range >= self.p.BO_n_times_atr * float(ctx.indicators["atr"].iat[i])
-                if cond3:
+                ## 突破幅度>=固定最小幅度
+                min_sl_range = close_series.iat[i] * (self.p.min_sl_range_pct / 100)
+                cond8 = bo_range >= min_sl_range
+                if cond3 and cond8:
                     self.state = "MC"
                     self.bo_start_i = i - 3
+            elif (cond1_short and cond2_short and cond4_short and cond6_short and cond7_short):
+                # 記錄breakout開始index
+                ## 突破幅度>=atr最小幅度(BO、MC)
+                bo_open_p = float(open_series.iat[i - abs(streak_curr) + 1]) if i - abs(streak_curr) + 1 >= 0 else 0.0
+                bo_range = abs(close_series.iat[i] - bo_open_p) if streak_curr < 0 else 0.0
+                cond3_short = bo_range >= self.p.BO_n_times_atr * float(ctx.indicators["atr"].iat[i])
+                ## 突破幅度>=固定最小幅度
+                min_sl_range = close_series.iat[i] * (self.p.min_sl_range_pct / 100)
+                cond8_short = bo_range >= min_sl_range
+                if cond3_short and cond8_short:
+                    self.state = "SBO"
+                    self.bo_start_i = i - abs(streak_curr) + 1
+            elif (cond2_short and cond4_short and cond5_short):
+                # 記錄breakout開始index
+                ## 突破幅度>=atr最小幅度(BO、MC)
+                bo_open_p = float(open_series.iat[i - 3])
+                bo_range = abs(close_series.iat[i] - bo_open_p)
+                cond3_short = bo_range >= self.p.BO_n_times_atr * float(ctx.indicators["atr"].iat[i])
+                ## 突破幅度>=固定最小幅度
+                min_sl_range = close_series.iat[i] * (self.p.min_sl_range_pct / 100)
+                cond8_short = bo_range >= min_sl_range
+                if cond3_short and cond8_short:
+                    self.state = "SMC"
+                    self.bo_start_i = i - 3
+                    
 
 
             # 狀態已經是BO或MC，檢查PB起點
@@ -197,16 +276,22 @@ class ALBreakoutPullback50pctStrategy(Strategy):
                 if pb_cond1:
                     self.state = "PB"
                     self.pb_start_i = i
+            elif self.state in ("SBO", "SMC"):
+                ## 出現兩根hh K線以上
+                pb_cond1_short = ctx.indicators["hh_streak"].iat[i] >= 2
+                if pb_cond1_short:
+                    self.state = "SPB"
+                    self.pb_start_i = i
 
             # 狀態已經是PB，檢查進場點
             elif self.state == "PB":
                 # 計算bo 高低點 pullback ratio 位置
                 bo_high = float(high_series.iloc[self.bo_start_i:self.pb_start_i+1].max())
                 bo_low  = float(low_series.iloc[self.bo_start_i:self.pb_start_i+1].min())
-                pb_level = bo_high - (bo_high - bo_low) * self.p.pullback_ratio
+                pb_level = bo_high - (bo_high - bo_low) * long_pullback_ratio
                 # 檢查有沒有碰到pb_level
                 long_cond_entry = low_series.iat[i] <= pb_level <= high_series.iat[i]
-                if long_cond_entry:
+                if long_cond_entry and cond_time_filter:
                     # 進場價格設在pb_level buy limit
                     entry_price = pb_level
                     # 停損設在channel下方
@@ -222,6 +307,37 @@ class ALBreakoutPullback50pctStrategy(Strategy):
                         OrderIntent(
                             action=ActionType.ENTRY,
                             side=Side.LONG,
+                            qty=max(self.p.min_qty, float(qty)),
+                            tp_price=tp_price,
+                            sl_price=sl_price,
+                            be_price=None,
+                            priority=10,
+                        )
+                    )
+                    self.state = None
+            elif self.state == "SPB":
+                # 計算bo 高低點 pullback ratio 位置
+                bo_high = float(high_series.iloc[self.bo_start_i:self.pb_start_i+1].max())
+                bo_low  = float(low_series.iloc[self.bo_start_i:self.pb_start_i+1].min())
+                pb_level = bo_low + (bo_high - bo_low) * short_pullback_ratio
+                # 檢查有沒有碰到pb_level
+                short_cond_entry = low_series.iat[i] <= pb_level <= high_series.iat[i]
+                if short_cond_entry and cond_time_filter:
+                    # 進場價格設在pb_level sell limit
+                    entry_price = pb_level
+                    # 停損設在channel上方
+                    sl_price = bo_high
+                    sl_distance = sl_price - entry_price
+                    # 停利設在停損距離的RR倍
+                    tp_price = entry_price - sl_distance * self.p.rr
+
+                    # 計算可用資金與下單數量
+                    max_notional_lose = base_equity * (self.p.max_notional_pct / 100)
+                    qty = max_notional_lose / (abs(entry_price - sl_price)) if abs(entry_price - sl_price) > 0 else 0.0
+                    intents.append(
+                        OrderIntent(
+                            action=ActionType.ENTRY,
+                            side=Side.SHORT,
                             qty=max(self.p.min_qty, float(qty)),
                             tp_price=tp_price,
                             sl_price=sl_price,
