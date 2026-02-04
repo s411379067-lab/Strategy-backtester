@@ -1,8 +1,8 @@
 # Todo
 
 ## 今天
-- AL first PB 策略測試改用Actual SL
-- AL first PB 策略測試PB 50%
+- 設計 breakout pullback 30%的互補策略(用在震盪行情)
+- 
 -   
 
 ## 接下來
