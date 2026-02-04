@@ -6,6 +6,7 @@ from typing import Dict, Any, List, Optional
 from ..models import OrderIntent, ActionType, Side, ExitType, Position, SizingEquityBase
 from ..strategy_base import Strategy, StrategyContext
 import pandas as pd
+import numpy as np
 
 @dataclass(frozen=True)
 class ALBOParams:
@@ -26,6 +27,11 @@ class ALBOParams:
 class ALBOStrategy(Strategy):
     def __init__(self, params: ALBOParams) -> None:
         self.p = params
+        self.state = None  # 可用來記錄策略狀態
+        self.pb_start_i = None  # 紀錄pullback開始的index
+        self.tp_changed = False  # 是否已經移動過停利
+        self.last_hh = None # 紀錄最近一次的最高點
+
 
     def required_indicators(self) -> Dict[str, Any]:
         n = self.p.break_out_series_n
@@ -36,6 +42,9 @@ class ALBOStrategy(Strategy):
             f"rocp_{n}": ("rocp", n),
             "hh": ("rolling_high", self.p.break_out_n_bars, "high"),
             "ll": ("rolling_low", self.p.break_out_n_bars, "low"),
+            "ll_streak": ("hh_ll_streak", "ll"),
+            "hh_streak": ("hh_ll_streak", "hh"),
+            "pivot_low_mask": ("pivot_mask", "low", 3),
             "atr": ("atr", 14),
             "ma": ("ma", 20, "close", "EMA"),
 
@@ -54,11 +63,66 @@ class ALBOStrategy(Strategy):
         intents: List[OrderIntent] = []
 
         open_series = df["open"]
-        close_p = float(df["close"].iat[i])
+        high_series = df["high"]
+        low_series = df["low"]
+        close_series = df["close"]
+        close_p = float(close_series.iat[i])
 
         # 若有倉，只更新出場線（也可以不更新）
         if pos.side is not None and pos.qty > 0:
             return intents
+            # if pos.side == Side.LONG:
+            #     if (self.state == "BO" or self.state == "UPDATE_SL"):
+            #         # 檢查是否PB
+            #         ll_streak = ctx.indicators["ll_streak"]
+            #         if ll_streak.iat[i] >= 3:
+            #             self.state = "PB"
+            #             self.pb_start_i = i
+            #     elif self.state == "PB":
+            #         # 檢查是否REUP
+            #         ## 比前高高
+            #         last_hh = float(high_series.iat[self.pb_start_i - 3]) if (self.pb_start_i - 3) >=0 else float("nan")
+            #         cond_reup_higher = close_series.iat[i] > last_hh
+            #         if cond_reup_higher:
+            #             self.state = "REUP"
+            #             self.last_hh = last_hh
+            #     elif self.state == "REUP":
+            #         # 檢查有沒有pivot low
+            #         start_i = self.pb_start_i if self.pb_start_i is not None else 0
+            #         end_i = i - 3  # 只允許用到已確認 pivot（避免 look-ahead）
+            #         if end_i >= start_i:
+            #             mask = ctx.indicators["pivot_low_mask"].iloc[start_i:end_i+1].to_numpy()
+            #             if mask.any():
+            #                 rel = np.flatnonzero(mask)[-1]
+            #                 lastest_pivot_low_i = start_i + int(rel)
+            #             else:
+            #                 lastest_pivot_low_i = None
+            #         else:
+            #             lastest_pivot_low_i = None
+            #         lastest_pivot_low = float(low_series.iat[lastest_pivot_low_i]) if lastest_pivot_low_i is not None else float("nan")
+            #         if not np.isnan(lastest_pivot_low):
+            #             # 找到pivot low，更新停損到pivot low
+            #             new_sl_price = lastest_pivot_low if lastest_pivot_low > pos.sl_price else pos.sl_price
+            #             # 更新到leg1.2 MM的rr倍
+            #             origin_sl_range = self.last_hh - pos.sl_price if pos.sl_price is not None else 0.0
+            #             new_tp_price = pos.tp_price if self.tp_changed else new_sl_price + origin_sl_range * 1
+            #             self.tp_changed = False
+            #             intents.append(
+            #                 OrderIntent(
+            #                     action=ActionType.UPDATE,
+            #                     side=pos.side, # side不會用到
+            #                     qty=0.0, # qty不會用到
+            #                     sl_price=new_sl_price,
+            #                     tp_price=new_tp_price,
+            #                     be_price=None,
+            #                     priority=50, 
+            #                 )
+            #             )
+            #             self.state = "UPDATE_SL"
+            # debug_info = {
+            #     "state": self.state,
+            # }
+            # return intents
 
         # 無倉：
         # 做突破進場（LONG）
@@ -116,6 +180,7 @@ class ALBOStrategy(Strategy):
                     priority=10,
                 )
             )
+            self.state = "BO"
             
         # 做突破進場（SHORT）
         ll = ctx.indicators["ll"]
@@ -153,6 +218,7 @@ class ALBOStrategy(Strategy):
                     priority=10,
                 )
             )
+            self.state = "BO"
 
 
         return intents
