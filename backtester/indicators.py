@@ -123,6 +123,28 @@ def pivot_mask(df: pd.DataFrame, side: str = "low", k: int = 2) -> pd.Series:
     pivot_mask_series = mask.fillna(False)
     return pivot_mask_series
 
+def efficiency_ratio(df: pd.DataFrame, length: int, ema_length: int, column: str = "close") -> pd.Series:
+    change = df[column].diff(length).abs()
+    volatility = df[column].diff().abs().rolling(length).sum()
+    er = change / volatility
+    er = er.fillna(0.0)
+    er_ma = talib.EMA(er, timeperiod=ema_length)
+    er = pd.Series(er_ma, index=df.index)
+    return er
+
+def liner_regression_mid(df: pd.DataFrame, length: int, column: str = "close") -> pd.Series:
+    mid = talib.LINEARREG(df[column], timeperiod=length)            # 回歸線在「當前這根」的 y 值（x=n-1）
+    return pd.Series(mid, index=df.index)
+
+def liner_regression_residuals(df: pd.DataFrame, length: int, column: str = "close") -> pd.Series:
+    mid = liner_regression_mid(df, length, column)
+    residuals = df[column] - mid
+    return residuals
+    
+def bar_regression_residuals_std(df: pd.DataFrame, length: int, column: str = "close") -> pd.Series:
+    residuals = liner_regression_residuals(df, length, column)
+    std = residuals.rolling(length, min_periods=length).std()
+    return std
 
 class IndicatorRegistry:
     def rolling_high(self, df: pd.DataFrame, length: int, column: str = "high") -> pd.Series:
@@ -157,5 +179,12 @@ class IndicatorRegistry:
         return hh_ll_streak(df, side)
     def pivot_mask(self, df: pd.DataFrame, side: str = "low", k: int = 2) -> pd.Series:
         return pivot_mask(df, side, k)
-# 你可以在這裡繼續添加其他指標函數
+    def efficiency_ratio(self, df: pd.DataFrame, length: int, ema_length: int, column: str = "close") -> pd.Series:
+        return efficiency_ratio(df, length, ema_length, column)
+    def liner_regression_mid(self, df: pd.DataFrame, length: int, column: str = "close") -> pd.Series:
+        return liner_regression_mid(df, length, column)
+    def liner_regression_residuals(self, df: pd.DataFrame, length: int, column: str = "close") -> pd.Series:
+        return liner_regression_residuals(df, length, column)
+    def bar_regression_residuals_std(self, df: pd.DataFrame, length: int, column: str = "close") -> pd.Series:
+        return bar_regression_residuals_std(df, length, column)
 
