@@ -101,7 +101,11 @@ class BacktestEngine:
             for it in intents_sorted:
                 if it.action == ActionType.ENTRY:
                     if portfolio.position.side is None or portfolio.position.qty == 0:
-                        fill = exec_model.fill_entry(time=t, side=it.side, qty=it.qty, price=c, entry_bar_i=i)
+                        if it.entry_price is not None:
+                            entry_price = it.entry_price
+                        else:
+                            entry_price = c
+                        fill = exec_model.fill_entry(time=t, side=it.side, qty=it.qty, price=entry_price, entry_bar_i=i)
                         portfolio.apply_entry_fill(fill)
                         # 若 intent 有帶 tp/sl/be，直接寫入 position
                         portfolio.position.tp_price = it.tp_price

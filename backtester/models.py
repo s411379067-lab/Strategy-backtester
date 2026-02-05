@@ -51,6 +51,7 @@ class OrderIntent:
     # exit controls (若 action=EXIT 才會用)
     exit_type: Optional[ExitType] = None
     # 若策略用固定價位TP/SL/BE，可填入；否則留 None 代表由 engine/portfolio 當前狀態決定
+    entry_price: Optional[float] = None
     tp_price: Optional[float] = None
     sl_price: Optional[float] = None
     be_price: Optional[float] = None
