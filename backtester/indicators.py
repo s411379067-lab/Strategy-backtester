@@ -49,8 +49,12 @@ def bar_side_sum(df: pd.DataFrame, length: int) -> pd.Series:
 def body_strictly_increasing(df: pd.DataFrame, n: int) -> pd.Series:
     body = (df["close"] - df["open"]).abs()
     cond = pd.Series(True, index=df.index)
+    ## 嚴格版本：每根都比前一根大
+    # for j in range(n-1):
+    #     cond &= body.shift(j) > body.shift(j+1)
+    ## 寬鬆版本：只要最後一根最大，前面 n-1 根不要求嚴格遞增
     for j in range(n-1):
-        cond &= body.shift(j) > body.shift(j+1)
+        cond &= body > body.shift(j+1)
     # 前 n-1 根不足資料 -> False（避免 NaN 讓結果變成不確定）
     cond = cond.fillna(False)
     return cond
