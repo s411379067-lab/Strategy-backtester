@@ -111,6 +111,7 @@ class BacktestEngine:
                         portfolio.position.tp_price = it.tp_price
                         portfolio.position.sl_price = it.sl_price
                         portfolio.position.be_price = it.be_price
+                        portfolio.position.position_info = it.position_info
 
                 elif it.action == ActionType.EXIT:
                     if portfolio.position.side is not None and portfolio.position.qty > 0:
@@ -134,6 +135,11 @@ class BacktestEngine:
                             portfolio.position.sl_price = it.sl_price
                         if it.be_price is not None:
                             portfolio.position.be_price = it.be_price
+                        if it.position_info is not None:
+                            # 策略額外的倉位資訊（例如移動停損的最高點/最低點等）
+                            if portfolio.position.position_info is None:
+                                portfolio.position.position_info = {}
+                            portfolio.position.position_info.update(it.position_info)
                 # ADD 暫不實作（你後續要加倉時再擴充）
 
             # 5) 記錄 equity（用 close mark）

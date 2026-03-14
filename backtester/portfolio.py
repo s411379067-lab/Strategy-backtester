@@ -64,6 +64,7 @@ class Portfolio:
                 exit_type=fill.exit_type or ExitType.MANUAL,
                 pnl=pnl,
                 bars_held=bars_held,
+                info=self.position.position_info,  # 將 position_info 記錄到 Trade 中
             )
         )
 

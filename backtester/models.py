@@ -55,6 +55,7 @@ class OrderIntent:
     tp_price: Optional[float] = None
     sl_price: Optional[float] = None
     be_price: Optional[float] = None
+    position_info: Optional[dict] = None  # 策略可用來記錄額外的倉位資訊（例如移動停損的最高點/最低點等）
     priority: int = 100  # 數字越小越先處理
 
 
@@ -69,6 +70,8 @@ class Position:
     tp_price: Optional[float] = None
     sl_price: Optional[float] = None
     be_price: Optional[float] = None
+    position_info: Optional[dict] = None  # 策略可用來記錄額外的倉位資訊（例如移動停損的最高點/最低點等）
+
 
 
 @dataclass(frozen=True)
@@ -97,6 +100,7 @@ class Trade:
     exit_type: ExitType
     pnl: float
     bars_held: int
+    info: Optional[dict] = None  # 將 position_info 記錄到 Trade 中
 
 
 @dataclass

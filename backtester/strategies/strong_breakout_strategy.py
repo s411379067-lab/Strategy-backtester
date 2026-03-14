@@ -21,6 +21,8 @@ class StrongBreakoutParams:
     - break_out_n_bars: int = 20  # 計算突破用的n（例如前n根K線）
     - run_score_threshold: float = 5.0  # Run Score的分數門檻，高於分數門檻才考慮進場
     - session: Optional[str] = None  # 可選的交易時段，例如 "Asian", "EU", "US"，如果為None表示全天交易
+    - breakout_based_on: str = "close"  # 突破基於哪個價格，"close"或"extreme"（最高點/最低點）
+    
 
     - max_equity_loss_pct: float = 1.0  # 單筆交易最大損失占比（%）
     - min_qty: float = 0.001  # 最小交易量
@@ -41,6 +43,7 @@ class StrongBreakoutParams:
 
     run_score_threshold: float = 5.0
     session: Optional[str] = None  # 可選的交易時段，例如 "Asian", "European", "US"，如果為None表示全天交易
+    breakout_based_on: str = "close"  # 突破基於哪個價格，"close"或"extreme"（最高點/最低點）
 
 
 
@@ -89,9 +92,38 @@ class StrongBreakoutStrategy(Strategy):
         low_series = df["low"]
         close_series = df["close"]
         close_p = float(close_series.iat[i])
+        high_p = float(high_series.iat[i])
+        low_p = float(low_series.iat[i])
 
         # 若有倉，只更新出場線（也可以不更新）
         if pos.side is not None and pos.qty > 0:
+
+            info = pos.position_info or {}
+            bar_score_i = float(ctx.indicators["bar_score_df"]["bar_score"].iat[i])
+
+            k = i - pos.entry_bar_i  # 進場後第幾根
+
+            patch = {}
+
+            # 進場後第 1~3 根累加
+            if 1 <= k <= 3:
+                sum3 = float(info.get("sum_3bar_score_after_entry", 0.0)) + bar_score_i
+                patch["sum_3bar_score_after_entry"] = sum3
+
+            # 只在進場下一根記錄 follow-through
+            if k == 1:
+                patch["follow_through_score"] = bar_score_i
+
+            # 如果 patch 不是空的才送 UPDATE（避免每根都送）
+            if patch:
+                intents.append(OrderIntent(
+                    action=ActionType.UPDATE,
+                    side=pos.side,
+                    qty=0.0,
+                    position_info=patch,
+                    priority=20,
+                ))
+
             return intents
 
 
@@ -137,8 +169,14 @@ class StrongBreakoutStrategy(Strategy):
         ll = ctx.indicators["ll"]
         hh_i = hh.iat[i-1]
         ll_i = ll.iat[i-1]
-        breakout_cond = close_p > hh_i
-        breakout_short_cond = close_p < ll_i
+        if self.p.breakout_based_on == "close":
+            breakout_cond = close_p > hh_i
+            breakout_short_cond = close_p < ll_i
+        elif self.p.breakout_based_on == "extreme":
+            breakout_cond = high_p > hh_i
+            breakout_short_cond = low_p < ll_i
+        else:
+            raise ValueError(f"Invalid breakout_based_on value: {self.p.breakout_based_on}")
 
         # 方向條件
         side_cond = self.p.allow_side is None or self.p.allow_side == Side.LONG
@@ -151,6 +189,19 @@ class StrongBreakoutStrategy(Strategy):
             # seg_low = low_series.loc[seg_index_series].min()
             # seg內 bar score最高的那根的低點當作止損（分數相同時取比較早出現的那根)
             seg_bar_score = bar_score_series.loc[seg_index_series]
+            # seg_bar_score = seg_bar_score.sort_values(ascending=False, kind="stable")  # 分數高的在前面
+
+            # 取最高分、如果SL太大就取第二高分
+            # for idx, score in seg_bar_score.items():
+            #     seg_low = low_series.loc[idx]
+            #     sl_price = seg_low
+            #     sl_range = entry_price - sl_price
+            #     sl_range_pct = sl_range / entry_price * 100 if entry_price > 0 else 0.0
+            #     tp_price = entry_price + sl_range * self.p.rr
+            #     if sl_range_pct < self.p.min_sl_pct:
+            #         break  # 找到第一個符合停損距離要求的bar就停止
+
+            # 直接取最高分的那根，停損距離如果太大就放棄這筆交易
             candidate_index = seg_bar_score.idxmax()
             seg_low = low_series.loc[candidate_index]
             sl_price = seg_low
@@ -159,16 +210,9 @@ class StrongBreakoutStrategy(Strategy):
             # 計算倉位大小（簡化：以初始資金為基礎）
             max_notional_loss = base_equity * self.p.max_equity_loss_pct / 100
             qty = max_notional_loss / sl_range if sl_range > 0 else self.p.min_qty
-            # print(f"i={i}, entry_price={entry_price}, sl_price={sl_price}, tp_price={tp_price}, qty={qty}")
 
-            # sl_distance = entry_price - sl_price
-            # tp_price = entry_price + sl_distance * self.p.rr
-            # ## 計算倉位大小（風險金額 / 單位風險）
-            # max_notional_lose = base_equity * self.p.equity_max_loss_pct / 100
-            # qty = max_notional_lose / sl_distance if sl_distance > 0 else 0.0
             sl_range_pct = sl_range / entry_price * 100 if entry_price > 0 else 0.0
             if sl_range_pct > self.p.min_sl_pct:
-                # print(f"i={i}, sl_range_pct={sl_range_pct:.2f}% < min_sl_pct={self.p.min_sl_pct}%, skip trade")
                 return intents
 
             intents.append(
@@ -180,6 +224,7 @@ class StrongBreakoutStrategy(Strategy):
                     sl_price=sl_price,
                     tp_price=tp_price,
                     be_price=None,
+                    position_info={"follow_through_score": None, "entry_bar_score": bar_score_series.iat[i], "sum_3bar_score_after_entry": 0},  # 可以記錄進場的index，後續用來判斷持倉時間等
                     priority=10,
                 )
             )
@@ -208,6 +253,7 @@ class StrongBreakoutStrategy(Strategy):
                     sl_price=sl_price,
                     tp_price=tp_price,
                     be_price=None,
+                    position_info={"follow_through_score": None, "entry_bar_score": bar_score_series.iat[i], "sum_3bar_score_after_entry": 0},  # 可以記錄進場的index，後續用來判斷持倉時間等
                     priority=10,
                 )
             )
